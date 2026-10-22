@@ -1,183 +1,99 @@
 # LootDrop
 
-LootDrop is a Flutter app that shows the games and in-game loot currently being given away for free. It reads the public [GamerPower](https://www.gamerpower.com/) API, presents the offers in a searchable, filterable grid, and links to the official claim pages. The interface keeps a text-only identity (no logo, no emoji, no decorative branding) and supports light, dark and system display modes with a choice of twelve accent colours.
+**Find your next free game, bonus item or beta invitation.**
 
-**Course assignment** — MAD-III 33/44B Weekend, IT: read data from `https://www.gamerpower.com/api/giveaways`, display it in a grid view, use Riverpod for state, include bottom navigation, a game screen, a detail screen, a settings screen, dark-mode switching and colour-theme switching.
+LootDrop is a Flutter giveaway browser powered by GamerPower. Search the catalogue, narrow it by category, read claim instructions and open an offer in your external browser. A Material 3 interface pairs light, dark and system modes with twelve saved accent choices.
 
-## Screenshots
+Built as a MAD-III course assignment, with Riverpod state management and a focus on clear loading, refresh and recovery states.
+
+## A look inside
 
 | Discover | Giveaway details |
 | --- | --- |
-| ![Discover screen](docs/screenshots/discover.png) | ![Giveaway details screen](docs/screenshots/detail.png) |
-| **Appearance (light)** | **Discover (dark, Ocean accent — captured after a restart)** |
-| ![Appearance screen](docs/screenshots/appearance.png) | ![Dark mode](docs/screenshots/dark.png) |
+| ![Discover catalogue](docs/screenshots/discover.png) | ![Giveaway detail screen](docs/screenshots/detail.png) |
+| Appearance | Dark mode |
+| ![Appearance controls](docs/screenshots/appearance.png) | ![Dark catalogue](docs/screenshots/dark.png) |
 
-All screenshots were taken from the release APK running on an Android 16 (API 36) emulator at 1080×1920 (≈ 411 dp wide).
+Existing screenshots are retained from the repository. Their binary contents were not available for inspection in this text export.
 
-## Features
+## Browse without losing your place
 
-- **Live catalogue** from `https://www.gamerpower.com/api/giveaways` — 107 giveaways displayed during the verification run.
-- **Grid view** that adapts its column count to the window width and to the user's text-scale setting.
-- **Search** across title, platform and type, with a visible, live result count.
-- **Category filters** — All, Games, Loot, Beta access — in a horizontally scrollable row.
-- **Detail screen** — artwork, *Free to claim*, the original monetary value (labelled as such), platform/type tags, end date, description, instructions and a **Get giveaway** action.
-- **Refresh** — an always-visible refresh action that keeps existing results on screen while loading, blocks duplicate requests, and shows a compact success toast in the bottom-right corner. On failure, previous results stay on screen and an inline **Retry** is offered.
-- **Clear states** — loading skeletons, "No giveaways right now", "No matches found" with a *Clear search and filters* action, an initial-error screen with *Try again*, and an *Artwork unavailable* fallback when an image is missing or fails to load.
-- **Appearance screen** — System / Light / Dark display mode and twelve accent colours (centred within their rows), persisted across restarts.
-- **Bottom navigation** between Discover and Appearance.
+- **Search and filter together:** match title, platform or type, then select All, Games, Loot or Beta access.
+- **See the offer clearly:** artwork, original value, platform/type tags, end date, description and instructions appear when supplied.
+- **Refresh without a blank screen:** existing results stay visible while a request runs. Duplicate refreshes are suppressed; failures retain the previous list and offer retry.
+- **Recover from missing content:** initial-error, empty-catalogue, no-match and artwork-failure states have dedicated messages.
+- **Choose your appearance:** display mode and accent are stored locally, with rollback and inline feedback if saving fails.
+- **Adapt the catalogue:** grid columns respond to available width and text scaling. Discover and Appearance remain mounted through an IndexedStack.
 
-## Assignment requirements → implementation
+Claiming happens outside LootDrop. The app does not redeem offers, manage store accounts or verify that a giveaway is still claimable. There are no bookmarks, notifications or persistent offline catalogue in the supplied application.
 
-| Requirement | Where it lives |
-| --- | --- |
-| Read API `gamerpower.com/api/giveaways` | `lib/providers/feed_provider.dart` → `fetchGiveaways()` |
-| Grid view of giveaways | `lib/widgets/catalogue_grid.dart`, `lib/widgets/giveaway_card.dart` |
-| Riverpod state management | `lib/providers/` — see *State management* below |
-| Bottom navigation bar | `lib/screens/home_screen.dart` — `NavigationBar` with Discover / Appearance |
-| Game (discover) screen | `lib/screens/game_screen.dart` |
-| Detail screen | `lib/screens/detail_screen.dart` |
-| Settings screen | `lib/screens/settings_screen.dart` |
-| Dark-mode switching | Display-mode chips (System / Light / Dark) + `lib/theme/app_theme.dart` |
-| Colour-theme switching | Accent swatch picker (12 colours) + `lib/theme/app_theme.dart` |
-| Persistent appearance | `SharedPreferences` (`theme_mode`, `theme_colour`) in `lib/providers/settings_provider.dart` |
+## Run locally
 
-## Architecture
+The manifest declares Dart `^3.13.5`; the lockfile records Dart `>=3.13.5 <4.0.0` and Flutter `>=3.44.0`. Use a Flutter installation compatible with those constraints and your target platform's toolchain.
 
-```
-lib/
-├── main.dart                     # entry point: ProviderScope + LootDropApp
-├── app.dart                      # MaterialApp wiring (theme mode, seed colour, load/error states)
-├── models/
-│   └── giveaway.dart             # Giveaway model, JSON parsing, hasValue() metadata guard
-├── providers/
-│   ├── feed_provider.dart        # http.Client, GamerPower request, Feed + FeedController
-│   ├── browse_provider.dart      # search/category state, filtered(), bottom-nav index
-│   └── settings_provider.dart    # appearance state + SharedPreferences persistence
-├── screens/
-│   ├── home_screen.dart          # bottom navigation (IndexedStack)
-│   ├── game_screen.dart          # discover: compact scrolling header, search, filters, grid
-│   ├── detail_screen.dart        # giveaway details + claim action
-│   └── settings_screen.dart      # appearance controls
-├── theme/
-│   └── app_theme.dart            # Material 3 theme built from a seed colour; 12 accents
-└── widgets/
-    ├── artwork.dart              # network image with loading + failure fallback
-    ├── catalogue_grid.dart       # responsive grid (skeleton cards while loading)
-    ├── giveaway_card.dart        # card: artwork, type, title, platforms, "Free"
-    ├── open_link.dart            # safe external-browser launching + error dialog
-    └── result_toast.dart         # bottom-right success toast
-```
+From the original repository root:
 
-### State management (Riverpod)
-
-| Provider | Type | Owns |
-| --- | --- | --- |
-| `clientProvider` | `Provider<http.Client>` | the shared HTTP client (closed on dispose) |
-| `feedProvider` | `AsyncNotifierProvider<FeedController, Feed>` | API state: items, `refreshing`, `failedRefresh`, and the refresh policy |
-| `browseProvider` | `NotifierProvider<BrowseController, Browse>` | the search query and selected category |
-| `navigationProvider` | `NotifierProvider<NavigationController, int>` | bottom-navigation index (Discover = 0, Appearance = 1) |
-| `settingsProvider` | `AsyncNotifierProvider<SettingsController, Appearance>` | display mode + accent colour, persisted with SharedPreferences |
-
-`filtered(items, browse)` is a pure function that composes the search query and category filter without mutating the API data.
-
-## Data source
-
-The app reads the free public GamerPower API:
-
-- Endpoint: `https://www.gamerpower.com/api/giveaways`
-- Service and documentation: https://www.gamerpower.com/
-
-Giveaways belong to their respective publishers; every claim link points to the official offer page. LootDrop is not affiliated with GamerPower.
-
-## Getting started
-
-Prerequisites:
-
-- Flutter 3.47.x (stable) with Dart 3.13.x — verified with Flutter 3.47.6 / Dart 3.13.5
-- Android SDK (compile/target SDK 36; min SDK 24)
-
-Run:
-
-```bash
+```sh
 flutter pub get
-flutter run            # choose the connected device or emulator
+flutter run
 ```
 
-The Android manifest already declares `android.permission.INTERNET`, which the GamerPower request needs.
+No API key, environment file or separate backend is configured in the supplied code. The feed URL is fixed in the provider. Retain the lockfile and the existing Android preferences override when reproducing the current dependency set; this refresh does not validate or remove that override.
 
-## Tests and release build
+## Stack and source map
 
-```bash
+| Area | Implementation |
+| --- | --- |
+| Interface | Flutter, Dart and Material 3 |
+| State | Riverpod Notifier/AsyncNotifier providers |
+| Requests | HTTP client with a 20-second request timeout |
+| Preferences | SharedPreferences |
+| External pages | url_launcher |
+| Tests | flutter_test, mocked HTTP and mocked preferences |
+
+```text
+lib/
+  main.dart                 ProviderScope entry point
+  app.dart                  Themes and settings startup states
+  models/giveaway.dart      Parsing and metadata guards
+  providers/                Feed, browsing, navigation and appearance state
+  screens/                  Discover, details and appearance
+  theme/                    Seed-colour themes and accent definitions
+  widgets/                  Cards, grid, artwork, link handling and toast
+test/
+  core_test.dart            Parser, filtering, HTTP, refresh and preferences
+  layout_test.dart          Browse/detail/settings widget scenarios
+```
+
+The Dart package remains `game_giveaways`. Keeping the public name LootDrop does not require changing imports or platform identifiers.
+
+## Data and links
+
+Listings come from [GamerPower](https://www.gamerpower.com/). Search/filtering runs locally over the fetched list. Successful refresh replaces that list; failed refresh preserves it only in memory. A fresh launch still needs network access.
+
+Artwork and claim links must have an HTTPS scheme and a non-empty host to pass the supplied helpers. That is format validation, not domain verification or a guarantee that an offer is official or safe. Check the destination and publisher conditions before signing in or claiming anything. Missing or unavailable metadata is omitted rather than presented as an empty label.
+
+## Checks
+
+```sh
 dart format --output=none --set-exit-if-changed lib test
 flutter analyze
 flutter test
 flutter build apk --release
 ```
 
-Current status (Flutter 3.47.6 / Dart 3.13.5):
+The source contains seven core tests and a widget-test matrix covering three widths, two text scales and both brightness modes. These are test definitions, not fresh passing results. They do not establish live API availability, real-device behaviour, screen-reader compatibility or every external-link outcome.
 
-- `dart format` — clean.
-- `flutter analyze` — no issues.
-- `flutter test` — **19/19 passing**: 7 core tests (parsing and metadata validation, search/filter composition, HTTP success and malformed responses, empty responses, the refresh policy — replaces on success, retains previous results on failure, suppresses duplicate requests — and settings persistence) plus 12 widget tests covering 320 / 390 / 768 logical-pixel widths × 1.0 / 2.0 text scale × light / dark themes, with fatal hit-test warnings and scrolling to genuinely tappable targets.
-- `flutter build apk --release` — succeeds (49.1 MB universal APK).
+The earlier README reports a Flutter 3.47.6 / Dart 3.13.5 run with 19 passing tests and an Android emulator release check. That is retained as a **previous repository-reported result**, not independently reproduced in this refresh. See [verification notes](docs/repository-refresh.md).
 
-## Download the demo APK
+## Android demo and release boundaries
 
-The demo is the release APK attached to the [v1.0.0 release](https://github.com/SRUN-Sochettra/LootDrop/releases/latest):
+The previous README links to the [repository's release page](https://github.com/SRUN-Sochettra/LootDrop/releases/latest). The current release asset, download size and checksum were not retrieved or verified here.
 
-**`lootdrop-v1.0.0-android.apk`**
+Android configuration currently uses debug signing for release builds and the example application ID `com.example.game_giveaways`. It is suitable to review as a demo configuration, not to advertise as store-ready signing. Platform folders for iOS, web and desktop are included, but this refresh did not build them. macOS entitlements do not declare network-client access in the supplied files.
 
-| | |
-| --- | --- |
-| Version | 1.0.0 (version code 1) |
-| Application ID | `com.example.game_giveaways` |
-| Android | 7.0+ (min SDK 24, target SDK 36) |
-| Size | 49.1 MB (51,526,540 bytes), universal APK |
-| SHA-256 | `BA9578E7450C8DB51923FD43B3BA9359C09E8475B4D480B489ED6D250EC7EC4D` |
+## Contributing, security and licence
 
-> The APK is signed with the standard Flutter debug keystore — fine for evaluation, not for store distribution.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Source review and packaging checks were performed; Flutter analysis, tests, builds and live requests were not run during this refresh.
 
-## Appearance persistence
-
-Display mode and accent colour are stored in `SharedPreferences` under the keys `theme_mode` and `theme_colour`. Writes are optimistic: the UI updates immediately, and if a write fails the previous choice is restored with an inline message. Verified on device: switching to Dark + Ocean and restarting the app keeps both.
-
-## Loading, error and empty behaviour
-
-- **Loading** — six skeleton cards while the first request is in flight.
-- **Empty API response** — "No giveaways right now" with a Refresh action.
-- **No matches** — the current search/filters produced no results; one button clears both.
-- **Initial error** — an explanatory message with *Try again*.
-- **Refresh failure** — previous results are kept, with "Could not refresh. Showing previous results." and a *Retry* action.
-- **Image failure** — an *Artwork unavailable* placeholder instead of a broken image.
-- Missing metadata (`not available` / `n/a` / `null`) is omitted rather than rendered as blank pills.
-
-## Verification status
-
-Automated: `dart format` clean, `flutter analyze` clean, `flutter test` 19/19, `flutter build apk --release` succeeds — all re-run after the final dependency change.
-
-Manual checks on the release APK (Android 16 / API 36 emulator, 1080×1920 ≈ 411 dp):
-
-- Fresh launch loads the catalogue (107 giveaways on 19 Oct 2026).
-- Detail screen opens; *Free to claim*, *Original value: $5.99*, tags and end date render; no blank pills.
-- Search `itch` → "15 giveaways matching your search"; the clear button restores the full list.
-- Filters: Games → 16, Loot → 0 (empty state), Beta access → 0 (empty state), All → 107.
-- Refresh keeps results on screen and shows the "Giveaways refreshed" toast bottom-right (duplicate-request blocking is covered by tests, not raced manually).
-- **Get giveaway** opens the external browser (Chrome) and loads the official itch.io offer page.
-- Dark mode + accent change persist across a force-stop and relaunch.
-- 200% system font scale → single-column grid, no overflow; 320 dp width → single-column layout.
-
-Not verified: iOS / macOS / Linux / Windows / web builds, physical-device behaviour, screen readers (TalkBack), and store-distribution signing.
-
-## Known limitations
-
-- The release APK is signed with the debug keystore and is a universal APK (contains all ABIs), hence ≈ 49 MB.
-- The application ID is the Flutter default `com.example.game_giveaways`.
-- Data is fetched live on each launch; there is no offline cache.
-- `shared_preferences_android` is pinned to `2.4.28` through a documented `dependency_overrides` entry: the 2.5.0 release rewrote the plugin to Pigeon-JNI without shipping R8 keep rules, and the first preferences read hangs in minified release builds ([flutter/flutter#194701](https://github.com/flutter/flutter/issues/194701)). Remove the pin once an upstream fix ships.
-- GamerPower is a public free API; if it is unreachable or rate-limited, the error/retry states apply.
-
-## Author
-
-**Srun Sochettra** — GitHub: [SRUN-Sochettra](https://github.com/SRUN-Sochettra)
-
-Source code: https://github.com/SRUN-Sochettra/LootDrop
+No project licence file is included in the supplied export. This refresh does not assign a licence or establish rights to third-party artwork and listing content. `publish_to: none` is a package-publishing setting, not a source-code licence.
